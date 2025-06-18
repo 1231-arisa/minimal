@@ -1,9 +1,20 @@
-import gradio as gr
+from flask import Flask, render_template, request, jsonify, send_file
 import os
 import numpy as np
 from PIL import Image
 import cv2
 from rembg import remove, new_session
+import base64
+import io
+import uuid
+
+app = Flask(__name__)
+
+# Configure upload folder
+UPLOAD_FOLDER = 'uploads'
+OUTPUT_FOLDER = 'output'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 def segment_and_crop_clothing(clothing_path):
     """
@@ -63,51 +74,58 @@ def composite_images(avatar_path, processed_clothing_img, output_path):
     except Exception as e:
         pass
 
-def process_images(avatar_image, clothing_image):
-    if avatar_image is None or clothing_image is None:
-        return None, "Please upload both avatar and clothing images."
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/process', methods=['POST'])
+def process_images():
     try:
-        avatar = Image.fromarray(avatar_image)
-        clothing = Image.fromarray(clothing_image)
-        avatar_path = "input/temp_avatar.png"
-        clothing_path = "input/temp_clothing.png"
-        output_path = "output/result.png"
-        avatar.save(avatar_path)
-        clothing.save(clothing_path)
+        # Get uploaded files
+        avatar_file = request.files['avatar']
+        clothing_file = request.files['clothing']
+        
+        if not avatar_file or not clothing_file:
+            return jsonify({'error': 'Please upload both avatar and clothing images'}), 400
+        
+        # Generate unique filenames
+        avatar_filename = f"avatar_{uuid.uuid4().hex}.png"
+        clothing_filename = f"clothing_{uuid.uuid4().hex}.png"
+        output_filename = f"result_{uuid.uuid4().hex}.png"
+        
+        avatar_path = os.path.join(UPLOAD_FOLDER, avatar_filename)
+        clothing_path = os.path.join(UPLOAD_FOLDER, clothing_filename)
+        output_path = os.path.join(OUTPUT_FOLDER, output_filename)
+        
+        # Save uploaded files
+        avatar_file.save(avatar_path)
+        clothing_file.save(clothing_path)
+        
+        # Process images
         processed_clothing = segment_and_crop_clothing(clothing_path)
         if processed_clothing is None:
-            return None, "Clothing segmentation failed."
+            return jsonify({'error': 'Clothing segmentation failed'}), 500
+        
         composite_images(avatar_path, processed_clothing, output_path)
-        result = Image.open(output_path)
-        return np.array(result), "Successfully composited!"
+        
+        # Convert result to base64 for sending back
+        with open(output_path, 'rb') as f:
+            result_data = f.read()
+        result_base64 = base64.b64encode(result_data).decode('utf-8')
+        
+        # Clean up temporary files
+        os.remove(avatar_path)
+        os.remove(clothing_path)
+        os.remove(output_path)
+        
+        return jsonify({
+            'success': True,
+            'result': result_base64,
+            'message': 'Successfully composited!'
+        })
+        
     except Exception as e:
-        return None, f"Error: {str(e)}"
+        return jsonify({'error': f'Processing error: {str(e)}'}), 500
 
-def create_interface():
-    with gr.Blocks(title="AIstylist - Clothing Avatar Composer") as interface:
-        gr.Markdown("""
-        # 🧠 AIstylist - Clothing Avatar Composer
-        Upload an avatar image and a clothing image to create a composite.
-        """)
-        with gr.Row():
-            with gr.Column():
-                avatar_input = gr.Image(label="Avatar Image", type="numpy")
-                clothing_input = gr.Image(label="Clothing Image", type="numpy")
-                process_btn = gr.Button("Process Images")
-            with gr.Column():
-                output_image = gr.Image(label="Composite Result")
-                output_text = gr.Textbox(label="Status")
-        process_btn.click(
-            fn=process_images,
-            inputs=[avatar_input, clothing_input],
-            outputs=[output_image, output_text]
-        )
-    return interface
-
-if __name__ == "__main__":
-    interface = create_interface()
-    interface.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=True
-    )
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=7860) 
