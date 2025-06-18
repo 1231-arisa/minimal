@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
@@ -49,19 +49,18 @@
         }
 
         .upload-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            text-align: center;
             margin-bottom: 30px;
         }
 
         .upload-area {
             border: 3px dashed #ddd;
             border-radius: 15px;
-            padding: 30px;
+            padding: 40px;
             text-align: center;
             transition: all 0.3s ease;
             cursor: pointer;
+            margin-bottom: 20px;
         }
 
         .upload-area:hover {
@@ -77,11 +76,13 @@
         .upload-area h3 {
             color: #333;
             margin-bottom: 15px;
+            font-size: 1.5em;
         }
 
         .upload-area p {
             color: #666;
             margin-bottom: 20px;
+            font-size: 1.1em;
         }
 
         .file-input {
@@ -92,10 +93,11 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 15px 30px;
             border-radius: 25px;
             cursor: pointer;
             font-size: 16px;
+            font-weight: bold;
             transition: transform 0.2s ease;
         }
 
@@ -109,6 +111,7 @@
             border-radius: 10px;
             margin-top: 15px;
             display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
 
         .process-btn {
@@ -137,11 +140,12 @@
 
         .result-section {
             text-align: center;
+            margin-top: 30px;
         }
 
         .result-image {
             max-width: 100%;
-            max-height: 400px;
+            max-height: 500px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             display: none;
@@ -152,6 +156,7 @@
             padding: 15px;
             border-radius: 10px;
             font-weight: bold;
+            display: none;
         }
 
         .status.success {
@@ -186,6 +191,29 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .info-box {
+            background-color: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .info-box h4 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            color: #424242;
+            margin-left: 20px;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -196,54 +224,47 @@
         </div>
         
         <div class="content">
+            <div class="info-box">
+                <h4>How it works:</h4>
+                <ul>
+                    <li>Upload a clothing image (shirt, jacket, etc.)</li>
+                    <li>AI automatically removes the background using advanced segmentation</li>
+                    <li>Clothing is intelligently resized and positioned on a fixed avatar</li>
+                    <li>Get your composite image showing the avatar wearing the clothing</li>
+                </ul>
+            </div>
+
             <div class="upload-section">
-                <div class="upload-area" onclick="document.getElementById('avatar-input').click()">
-                    <h3>Avatar Image</h3>
-                    <p>Click to upload or drag and drop</p>
-                    <input type="file" id="avatar-input" class="file-input" accept="image/*">
-                    <button class="upload-btn">Choose File</button>
-                    <img id="avatar-preview" class="preview-image">
-                </div>
-                
                 <div class="upload-area" onclick="document.getElementById('clothing-input').click()">
-                    <h3>Clothing Image</h3>
-                    <p>Click to upload or drag and drop</p>
+                    <h3>📁 Upload Clothing Image</h3>
+                    <p>Click to upload or drag and drop your clothing image</p>
                     <input type="file" id="clothing-input" class="file-input" accept="image/*">
-                    <button class="upload-btn">Choose File</button>
+                    <button class="upload-btn">Choose Clothing Image</button>
                     <img id="clothing-preview" class="preview-image">
                 </div>
             </div>
             
-            <button id="process-btn" class="process-btn" onclick="processImages()" disabled>
-                Process Images
+            <button id="process-btn" class="process-btn" onclick="processImage()" disabled>
+                🎨 Process Image
             </button>
             
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Processing images...</p>
+                <p>Processing your image...</p>
             </div>
             
             <div class="result-section">
+                <h3>Result</h3>
                 <img id="result-image" class="result-image">
-                <div id="status" class="status" style="display: none;"></div>
+                <div id="status" class="status"></div>
             </div>
         </div>
     </div>
 
     <script>
-        let avatarFile = null;
         let clothingFile = null;
 
-        // File input handlers
-        document.getElementById('avatar-input').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                avatarFile = file;
-                displayPreview(file, 'avatar-preview');
-                updateProcessButton();
-            }
-        });
-
+        // File input handler
         document.getElementById('clothing-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
@@ -265,7 +286,7 @@
 
         function updateProcessButton() {
             const processBtn = document.getElementById('process-btn');
-            processBtn.disabled = !(avatarFile && clothingFile);
+            processBtn.disabled = !clothingFile;
         }
 
         function showStatus(message, isError = false) {
@@ -280,9 +301,15 @@
             document.getElementById('process-btn').disabled = show;
         }
 
-        async function processImages() {
-            if (!avatarFile || !clothingFile) {
-                showStatus('Please upload both avatar and clothing images', true);
+        function showResult(imageUrl) {
+            const resultImage = document.getElementById('result-image');
+            resultImage.src = imageUrl;
+            resultImage.style.display = 'block';
+        }
+
+        async function processImage() {
+            if (!clothingFile) {
+                showStatus('Please upload a clothing image first', true);
                 return;
             }
 
@@ -290,11 +317,10 @@
             showStatus('');
 
             const formData = new FormData();
-            formData.append('avatar', avatarFile);
             formData.append('clothing', clothingFile);
 
             try {
-                const response = await fetch('/process', {
+                const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -302,49 +328,43 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    const resultImage = document.getElementById('result-image');
-                    resultImage.src = 'data:image/png;base64,' + data.result;
-                    resultImage.style.display = 'block';
+                    showResult(data.result_image);
                     showStatus(data.message);
                 } else {
                     showStatus(data.error, true);
                 }
             } catch (error) {
-                showStatus('An error occurred while processing the images', true);
+                showStatus('An error occurred while processing the image', true);
+                console.error('Error:', error);
             } finally {
                 showLoading(false);
             }
         }
 
         // Drag and drop functionality
-        document.querySelectorAll('.upload-area').forEach(area => {
-            area.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                area.classList.add('dragover');
-            });
+        const uploadArea = document.querySelector('.upload-area');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
 
-            area.addEventListener('dragleave', () => {
-                area.classList.remove('dragover');
-            });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
 
-            area.addEventListener('drop', (e) => {
-                e.preventDefault();
-                area.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    const file = files[0];
-                    if (file.type.startsWith('image/')) {
-                        if (area.querySelector('#avatar-preview')) {
-                            avatarFile = file;
-                            displayPreview(file, 'avatar-preview');
-                        } else {
-                            clothingFile = file;
-                            displayPreview(file, 'clothing-preview');
-                        }
-                        updateProcessButton();
-                    }
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    clothingFile = file;
+                    displayPreview(file, 'clothing-preview');
+                    updateProcessButton();
                 }
-            });
+            }
         });
     </script>
 </body>
